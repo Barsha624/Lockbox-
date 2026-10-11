@@ -1,0 +1,10 @@
+{
+  "uploads/1791657403245-bg.jpg": {
+    "category": "Images",
+    "summary": "Stored in AWS S3 bucket.",
+    "tags": [
+      "S3 Object",
+      "Cloud Vault"
+    ]
+  }
+}
