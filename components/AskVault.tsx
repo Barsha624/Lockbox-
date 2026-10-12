@@ -45,7 +45,7 @@ export default function AskVault({ files, loading: filesLoading, onOpen }: Props
     : [];
 
   return (
-    <section aria-label="Ask your vault" className="ask-bg rounded-2xl p-5 text-white shadow-lg shadow-black/10 sm:p-7">
+    <section id="ask-vault" aria-label="Ask your vault" className="ask-bg rounded-2xl p-5 text-white shadow-lg shadow-black/10 sm:p-7">
       <div className="flex items-start gap-3">
         <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-teal-300">
           <Icon name="sparkle" className="h-5 w-5" />
@@ -64,6 +64,7 @@ export default function AskVault({ files, loading: filesLoading, onOpen }: Props
         className="mt-5 flex flex-col gap-2 sm:flex-row"
       >
         <input
+          id="ask-vault-input"
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}

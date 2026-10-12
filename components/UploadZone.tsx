@@ -41,7 +41,7 @@ export default function UploadZone({ onFiles, uploads }: { onFiles: (files: File
           setDragging(false);
           take(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-6 py-9 text-center transition focus-within:ring-2 focus-within:ring-teal focus-within:ring-offset-2 focus-within:ring-offset-paper ${
+        className={`lift flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-6 py-9 text-center transition focus-within:ring-2 focus-within:ring-teal focus-within:ring-offset-2 focus-within:ring-offset-paper ${
           dragging ? "border-teal bg-teal-soft" : "border-teal/40 bg-surface hover:border-teal hover:bg-teal-soft/50"
         }`}
       >

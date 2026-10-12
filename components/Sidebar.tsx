@@ -1,7 +1,15 @@
 "use client";
 
 import { Icon, type IconName } from "./Icon";
+import { formatBytes } from "../lib/format";
 import { CATEGORIES, type Category } from "../lib/types";
+
+const METER_COLOR: Record<Category, string> = {
+  Images: "var(--chart-images)",
+  PDFs: "var(--chart-pdfs)",
+  Documents: "var(--chart-docs)",
+  Other: "var(--chart-other)",
+};
 
 export type View = "All" | "Starred" | Category;
 
@@ -20,12 +28,13 @@ interface Props {
   onSelect: (view: View) => void;
   user: { name?: string | null; email?: string | null; image?: string | null };
   region: string;
+  usage: { total: number; byCategory: Record<Category, number> };
   onSignOut: () => void;
   open: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ view, counts, onSelect, user, region, onSignOut, open, onClose }: Props) {
+export default function Sidebar({ view, counts, onSelect, user, region, usage, onSignOut, open, onClose }: Props) {
   const initials = (user.name || user.email || "?").slice(0, 2).toUpperCase();
 
   return (
@@ -76,7 +85,28 @@ export default function Sidebar({ view, counts, onSelect, user, region, onSignOu
         </div>
 
         <div className="space-y-3">
-          {region && <p className="px-2 text-xs text-white/45">Stored in AWS {region}</p>}
+          <div className="rounded-xl bg-white/5 p-3">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm font-medium">Storage</p>
+              <p className="text-xs text-white/60">{formatBytes(usage.total)} used</p>
+            </div>
+            <div
+              role="img"
+              aria-label={`Storage by type: ${CATEGORIES.filter((c) => usage.byCategory[c] > 0)
+                .map((c) => `${c} ${formatBytes(usage.byCategory[c])}`)
+                .join(", ") || "empty"}`}
+              className="mt-2.5 flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10"
+            >
+              {CATEGORIES.filter((c) => usage.byCategory[c] > 0).map((c) => (
+                <span
+                  key={c}
+                  className="rounded-full"
+                  style={{ flexGrow: usage.byCategory[c], flexBasis: 0, minWidth: 4, backgroundColor: METER_COLOR[c] }}
+                />
+              ))}
+            </div>
+            {region && <p className="mt-2 text-xs text-white/45">Stored in AWS {region}</p>}
+          </div>
           <div className="rounded-xl bg-white/5 p-3">
             <div className="flex items-center gap-3">
               {user.image ? (

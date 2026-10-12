@@ -28,9 +28,9 @@ export default function StatsStrip({ files }: { files: FileItem[] }) {
   return (
     <section
       aria-label="Vault summary"
-      className="grid divide-y divide-line rounded-2xl border border-line bg-surface shadow-sm shadow-black/5 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+      className="grid gap-4 sm:grid-cols-3"
     >
-      <div className="p-5 sm:p-6">
+      <div className="lift rounded-2xl border border-line bg-surface shadow-sm shadow-black/5 p-5 sm:p-6">
         <h3 className="text-sm font-medium text-muted">Storage used</h3>
         <p className="mt-2 font-display text-4xl leading-none">{formatBytes(totalBytes)}</p>
         <p className="mt-2 text-sm text-ink-soft">
@@ -43,7 +43,7 @@ export default function StatsStrip({ files }: { files: FileItem[] }) {
         )}
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className="lift rounded-2xl border border-line bg-surface shadow-sm shadow-black/5 p-5 sm:p-6">
         <h3 className="text-sm font-medium text-muted">File types</h3>
         {/* 2px gaps between segments are the chart surface showing through */}
         <div role="img" aria-label={chartSummary} className="mt-4 flex h-3 gap-0.5">
@@ -66,7 +66,7 @@ export default function StatsStrip({ files }: { files: FileItem[] }) {
         </ul>
       </div>
 
-      <div className="flex items-center gap-5 p-5 sm:p-6">
+      <div className="lift rounded-2xl border border-line bg-surface shadow-sm shadow-black/5 flex items-center gap-5 p-5 sm:p-6">
         <div className="relative h-[76px] w-[76px] shrink-0">
           <svg viewBox="0 0 76 76" className="h-full w-full -rotate-90" role="img" aria-label={`${percent}% of files tagged by AI`}>
             <circle cx="38" cy="38" r={RING_RADIUS} fill="none" strokeWidth="8" stroke="var(--slate-soft)" />

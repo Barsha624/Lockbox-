@@ -1,5 +1,5 @@
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { bucket, INDEX_FILE, s3, userPrefix } from "./s3";
+import { bucket, INDEX_FILE, isMissingObject, s3, userPrefix } from "./s3";
 import type { AnalysisResult } from "./types";
 
 /**
@@ -23,7 +23,7 @@ export async function readIndex(userId: string): Promise<MetaIndex> {
     const text = (await res.Body?.transformToString()) ?? "{}";
     return JSON.parse(text) as MetaIndex;
   } catch (err) {
-    if (err instanceof Error && err.name === "NoSuchKey") return {};
+    if (isMissingObject(err)) return {};
     if (err instanceof SyntaxError) return {};
     throw err;
   }

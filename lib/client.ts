@@ -37,6 +37,11 @@ export async function getDownloadUrl(fileKey: string): Promise<string> {
   return data.downloadUrl;
 }
 
+export async function getThumbUrls(fileKeys: string[]): Promise<Record<string, string>> {
+  const data = await request<{ urls: Record<string, string> }>("/api/thumbs", jsonInit("POST", { fileKeys }));
+  return data.urls;
+}
+
 export async function starFile(fileKey: string, starred: boolean): Promise<void> {
   await request("/api/star", jsonInit("POST", { fileKey, starred }));
 }

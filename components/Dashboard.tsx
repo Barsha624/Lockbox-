@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import AskVault from "./AskVault";
+import FileCard from "./FileCard";
 import FileRow from "./FileRow";
 import { Icon } from "./Icon";
+import PreviewModal from "./PreviewModal";
 import Sidebar, { type View } from "./Sidebar";
 import StatsStrip from "./StatsStrip";
 import ThemeToggle from "./ThemeToggle";
@@ -16,12 +18,13 @@ import {
   deleteFile,
   fetchFiles,
   getDownloadUrl,
+  getThumbUrls,
   shareFile,
   starFile,
   uploadFile,
 } from "../lib/client";
-import { formatBytes } from "../lib/format";
-import { checkUpload, type FileItem } from "../lib/types";
+import { formatBytes, formatDate } from "../lib/format";
+import { ACCEPT_ATTRIBUTE, checkUpload, type Category, type FileItem } from "../lib/types";
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
@@ -32,6 +35,20 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: "name", label: "Name A to Z" },
   { value: "size", label: "Largest first" },
 ];
+
+const THUMB_MAX_BYTES = 6 * 1024 * 1024; // bigger pictures keep the plain tile, so the page stays light
+const THUMB_REFRESH_MS = 10 * 60 * 1000; // picture links last 15 minutes, so renew them before that
+const CHIPS: View[] = ["All", "Images", "PDFs", "Documents", "Other"];
+type Layout = "grid" | "list";
+
+const isPreviewable = (f: FileItem) => f.category === "Images" || f.category === "PDFs";
+
+function greetingFor(name?: string | null): string {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const first = name?.trim().split(/\s+/)[0];
+  return first ? `${part}, ${first}` : part;
+}
 
 function sortFiles(list: FileItem[], sort: Sort): FileItem[] {
   const copy = [...list];
@@ -57,6 +74,17 @@ export default function Dashboard({
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const [layout, setLayout] = useState<Layout>("grid");
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [thumbEpoch, setThumbEpoch] = useState(0);
+  const requestedThumbs = useRef<Set<string>>(new Set());
 
   const notify = useCallback((kind: Toast["kind"], text: string) => {
     const id = uid();
@@ -207,6 +235,131 @@ export default function Dashboard({
     [notify],
   );
 
+  const toggleSelect = useCallback((file: FileItem) => {
+    setBulkConfirm(false);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(file.key)) next.delete(file.key);
+      else next.add(file.key);
+      return next;
+    });
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    const targets = files.filter((f) => selected.has(f.key));
+    setBulkBusy(true);
+    const gone = new Set<string>();
+    for (const f of targets) {
+      try {
+        await deleteFile(f.key);
+        gone.add(f.key);
+      } catch {
+        // counted below
+      }
+    }
+    setFiles((prev) => prev.filter((f) => !gone.has(f.key)));
+    setSelected(new Set());
+    setBulkConfirm(false);
+    setBulkBusy(false);
+    const failed = targets.length - gone.size;
+    if (failed > 0) notify("error", `Deleted ${gone.size}, but ${failed} could not be deleted. Try those again.`);
+    else notify("success", `Deleted ${gone.size} ${gone.size === 1 ? "file" : "files"}`);
+  }, [files, selected, notify]);
+
+  // Remember grid or list between visits (private windows may block storage, so never rely on it).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cv-layout");
+      if (saved === "grid" || saved === "list") setLayout(saved);
+    } catch {
+      /* storage unavailable: keep the default */
+    }
+  }, []);
+  const chooseLayout = (next: Layout) => {
+    setLayout(next);
+    try {
+      localStorage.setItem("cv-layout", next);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Picture links for image cards. Each key is requested once; a timer renews them before they expire.
+  useEffect(() => {
+    const keys = files
+      .filter((f) => f.category === "Images" && f.size <= THUMB_MAX_BYTES && !requestedThumbs.current.has(f.key))
+      .map((f) => f.key);
+    if (keys.length === 0) return;
+    keys.forEach((k) => requestedThumbs.current.add(k));
+    (async () => {
+      for (let i = 0; i < keys.length; i += 40) {
+        try {
+          const urls = await getThumbUrls(keys.slice(i, i + 40));
+          setThumbs((prev) => ({ ...prev, ...urls }));
+        } catch {
+          // Cards fall back to the plain tile if pictures can't be loaded.
+        }
+      }
+    })();
+  }, [files, thumbEpoch]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      requestedThumbs.current.clear();
+      setThumbEpoch((e) => e + 1);
+    }, THUMB_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Press "/" anywhere to jump to the search box.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Drop files anywhere on the page. The upload box handles its own drops (it calls preventDefault first).
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth++;
+      setDragging(true);
+    };
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDragging(false);
+    };
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      depth = 0;
+      setDragging(false);
+      if (e.defaultPrevented || !hasFiles(e)) return;
+      e.preventDefault();
+      const dropped = Array.from(e.dataTransfer?.files ?? []);
+      if (dropped.length > 0) handleFiles(dropped);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, [handleFiles]);
+
   const counts = useMemo(() => {
     const c: Record<View, number> = { All: files.length, Starred: 0, Images: 0, PDFs: 0, Documents: 0, Other: 0 };
     for (const f of files) {
@@ -231,6 +384,43 @@ export default function Dashboard({
     return sortFiles(matching, sort);
   }, [files, view, query, sort]);
 
+  const previewList = useMemo(() => visible.filter(isPreviewable), [visible]);
+  const previewIndex = previewKey ? previewList.findIndex((f) => f.key === previewKey) : -1;
+  const previewFile = previewIndex >= 0 ? previewList[previewIndex] : null;
+
+  const handlePreview = useCallback(
+    (file: FileItem) => {
+      if (isPreviewable(file)) setPreviewKey(file.key);
+      else handleOpen(file); // Word, Excel, zip and so on can't be shown in the page, so download them
+    },
+    [handleOpen],
+  );
+  const closePreview = useCallback(() => setPreviewKey(null), []);
+  const stepPreview = useCallback(
+    (delta: number) => {
+      if (previewList.length === 0 || previewIndex < 0) return;
+      setPreviewKey(previewList[(previewIndex + delta + previewList.length) % previewList.length].key);
+    },
+    [previewList, previewIndex],
+  );
+  const prevPreview = useCallback(() => stepPreview(-1), [stepPreview]);
+  const nextPreview = useCallback(() => stepPreview(1), [stepPreview]);
+
+  const selectedFiles = useMemo(() => files.filter((f) => selected.has(f.key)), [files, selected]);
+  const allVisibleSelected = visible.length > 0 && visible.every((f) => selected.has(f.key));
+  const toggleAllVisible = () => {
+    setBulkConfirm(false);
+    setSelected(allVisibleSelected ? new Set() : new Set(visible.map((f) => f.key)));
+  };
+  const usage = useMemo(() => {
+    const byCategory: Record<Category, number> = { Images: 0, PDFs: 0, Documents: 0, Other: 0 };
+    for (const f of files) byCategory[f.category] += f.size;
+    return { total: files.reduce((sum, f) => sum + f.size, 0), byCategory };
+  }, [files]);
+  const recent = useMemo(() => sortFiles(files, "newest").slice(0, 4), [files]);
+  const newest = recent[0] ?? null;
+  const greeting = useMemo(() => greetingFor(user.name), [user.name]);
+
   const totalSize = useMemo(() => files.reduce((sum, f) => sum + f.size, 0), [files]);
   const title = view === "All" ? "All files" : view;
   const vaultIsEmpty = !loading && files.length === 0;
@@ -243,6 +433,7 @@ export default function Dashboard({
         onSelect={setView}
         user={user}
         region={region}
+        usage={usage}
         onSignOut={() => signOut({ callbackUrl: "/" })}
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -260,27 +451,92 @@ export default function Dashboard({
           <div className="relative w-full max-w-md">
             <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
             <input
+              ref={searchRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name, tag or summary"
               aria-label="Search files"
-              className="w-full rounded-xl border border-line bg-surface py-2.5 pl-10 pr-4 text-sm placeholder:text-muted focus:border-teal focus:outline-none"
+              className="w-full rounded-xl border border-line bg-surface py-2.5 pl-10 pr-4 text-sm transition-shadow placeholder:text-muted focus:border-teal focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--teal)_18%,transparent)] focus:outline-none"
             />
+            {!query && (
+              <kbd
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line px-1.5 py-0.5 font-sans text-xs text-muted sm:block"
+              >
+                /
+              </kbd>
+            )}
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById("ask-vault")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                document.getElementById("ask-vault-input")?.focus({ preventScroll: true });
+              }}
+              aria-label="Ask AI about your files"
+              className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium transition hover:border-teal hover:text-accent active:scale-95"
+            >
+              <Icon name="sparkle" className="h-4 w-4 text-amber-ink" />
+              <span className="hidden sm:inline">Ask AI</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => uploadRef.current?.click()}
+              aria-label="Upload files"
+              className="inline-flex items-center gap-2 rounded-xl bg-teal px-3.5 py-2 text-sm font-medium text-white shadow-sm shadow-teal/30 transition hover:opacity-90 active:scale-95"
+            >
+              <Icon name="upload" className="h-4 w-4" />
+              <span className="hidden sm:inline">Upload</span>
+            </button>
+            <input
+              ref={uploadRef}
+              type="file"
+              multiple
+              accept={ACCEPT_ATTRIBUTE}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []);
+                if (picked.length > 0) handleFiles(picked);
+                e.target.value = ""; // lets you pick the same file again
+              }}
+            />
             <ThemeToggle />
           </div>
         </header>
 
         <div className="mx-auto max-w-6xl space-y-9 px-4 pb-24 pt-9 sm:px-8">
-          <div>
-            <h1 className="font-display text-4xl sm:text-5xl">{title}</h1>
-            <p className="mt-2 text-sm text-muted">
-              {files.length === 0
-                ? "Nothing stored yet"
-                : `${files.length} ${files.length === 1 ? "file" : "files"} · ${formatBytes(totalSize)} used`}
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="font-display text-4xl sm:text-5xl">{view === "All" ? greeting : title}</h1>
+              <p className="mt-2 text-sm text-muted">
+                {files.length === 0
+                  ? "Nothing stored yet. Your first file is one drop away."
+                  : `${files.length} ${files.length === 1 ? "file" : "files"} · ${formatBytes(totalSize)} used${
+                      newest ? ` · last upload ${formatDate(newest.lastModified)}` : ""
+                    }`}
+              </p>
+            </div>
+            {files.length > 0 && (
+              <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2 text-sm">
+                {CHIPS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setView(c)}
+                    aria-pressed={view === c}
+                    className={`rounded-full px-4 py-1.5 transition active:scale-95 ${
+                      view === c ? "bg-ink text-paper" : "border border-line bg-surface text-ink-soft hover:border-teal hover:text-accent"
+                    }`}
+                  >
+                    {c === "All" ? "All" : c}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {files.length > 0 && <StatsStrip files={files} />}
@@ -288,6 +544,31 @@ export default function Dashboard({
           <AskVault files={files} loading={loading} onOpen={handleOpen} />
 
           <UploadZone onFiles={handleFiles} uploads={uploads} />
+
+          {!loading && view === "All" && !query.trim() && files.length >= 6 && (
+            <section aria-label="Recently added">
+              <h2 className="mb-3 font-display text-3xl">Recently added</h2>
+              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {recent.map((file, i) => (
+                  <FileCard
+                    key={`recent-${file.key}`}
+                    file={file}
+                    index={i}
+                    thumbUrl={thumbs[file.key]}
+                    analyzing={analyzing.has(file.key)}
+                    selected={selected.has(file.key)}
+                    onSelect={toggleSelect}
+                    onPreview={handlePreview}
+                    onOpen={handleOpen}
+                    onDelete={handleDelete}
+                    onAnalyze={(f) => runAnalyze(f.key)}
+                    onToggleStar={handleToggleStar}
+                    onShare={handleShare}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section aria-label={title}>
             {loading ? (
@@ -324,10 +605,36 @@ export default function Dashboard({
             ) : (
               <>
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-sm text-muted">
-                    {visible.length} {visible.length === 1 ? "file" : "files"}
-                    {query.trim() ? ` matching “${query.trim()}”` : ""}
-                  </p>
+                  <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      disabled={visible.length === 0}
+                      aria-label="Select all files shown"
+                      className="h-4 w-4 cursor-pointer accent-teal"
+                    />
+                    <span>
+                      {visible.length} {visible.length === 1 ? "file" : "files"}
+                      {query.trim() ? ` matching “${query.trim()}”` : ""}
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                  <div role="group" aria-label="Layout" className="flex rounded-lg border border-line bg-surface p-0.5">
+                    {(["grid", "list"] as const).map((l) => (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => chooseLayout(l)}
+                        aria-pressed={layout === l}
+                        aria-label={l === "grid" ? "Grid view" : "List view"}
+                        title={l === "grid" ? "Grid view" : "List view"}
+                        className={`rounded-md p-1.5 transition ${layout === l ? "bg-slate-soft text-ink" : "text-muted hover:text-ink"}`}
+                      >
+                        <Icon name={l} className="h-[18px] w-[18px]" />
+                      </button>
+                    ))}
+                  </div>
                   <label className="flex items-center gap-2 text-sm text-muted">
                     Sort
                     <select
@@ -342,6 +649,7 @@ export default function Dashboard({
                       ))}
                     </select>
                   </label>
+                  </div>
                 </div>
 
                 {visible.length === 0 ? (
@@ -367,26 +675,123 @@ export default function Dashboard({
                     </button>
                   </div>
                 ) : (
-                  <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-sm shadow-black/5">
-                    {visible.map((file) => (
-                      <FileRow
-                        key={file.key}
-                        file={file}
-                        analyzing={analyzing.has(file.key)}
-                        onOpen={handleOpen}
-                        onDelete={handleDelete}
-                        onAnalyze={(f) => runAnalyze(f.key)}
-                        onToggleStar={handleToggleStar}
-                        onShare={handleShare}
-                      />
-                    ))}
-                  </ul>
+                  layout === "grid" ? (
+                    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      {visible.map((file, i) => (
+                        <FileCard
+                          key={file.key}
+                          file={file}
+                          index={i}
+                          thumbUrl={thumbs[file.key]}
+                          analyzing={analyzing.has(file.key)}
+                          selected={selected.has(file.key)}
+                          onSelect={toggleSelect}
+                          onPreview={handlePreview}
+                          onOpen={handleOpen}
+                          onDelete={handleDelete}
+                          onAnalyze={(f) => runAnalyze(f.key)}
+                          onToggleStar={handleToggleStar}
+                          onShare={handleShare}
+                        />
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-sm shadow-black/5">
+                      {visible.map((file, i) => (
+                        <FileRow
+                          key={file.key}
+                          index={i}
+                          selected={selected.has(file.key)}
+                          onSelect={toggleSelect}
+                          onPreview={handlePreview}
+                          file={file}
+                          analyzing={analyzing.has(file.key)}
+                          onOpen={handleOpen}
+                          onDelete={handleDelete}
+                          onAnalyze={(f) => runAnalyze(f.key)}
+                          onToggleStar={handleToggleStar}
+                          onShare={handleShare}
+                        />
+                      ))}
+                    </ul>
+                  )
                 )}
               </>
             )}
           </section>
         </div>
       </main>
+
+      {selectedFiles.length > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
+          <div
+            role="region"
+            aria-label="Selected files"
+            className="modal-pop pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-deep px-4 py-3 text-white shadow-xl shadow-black/30"
+          >
+            <span className="text-sm font-medium">{selectedFiles.length} selected</span>
+            {bulkConfirm ? (
+              <>
+                <span className="text-sm text-white/80">Delete for good?</span>
+                <button
+                  onClick={() => setBulkConfirm(false)}
+                  disabled={bulkBusy}
+                  className="rounded-lg px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkBusy}
+                  className="rounded-lg bg-danger-solid px-3.5 py-1.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+                >
+                  {bulkBusy ? "Deleting…" : `Delete ${selectedFiles.length}`}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="rounded-lg px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => setBulkConfirm(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3.5 py-1.5 text-sm font-medium transition hover:bg-white/25"
+                >
+                  <Icon name="trash" className="h-4 w-4" />
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {dragging && (
+        <div
+          aria-hidden="true"
+          className="modal-fade pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-deep/80 backdrop-blur-sm"
+        >
+          <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-teal-soft/60 px-14 py-12 text-white">
+            <Icon name="upload" className="h-12 w-12" />
+            <p className="font-display text-3xl">Drop to add to your vault</p>
+          </div>
+        </div>
+      )}
+
+      {previewFile && (
+        <PreviewModal
+          file={previewFile}
+          position={previewIndex + 1}
+          total={previewList.length}
+          onPrev={prevPreview}
+          onNext={nextPreview}
+          onClose={closePreview}
+          onOpenTab={handleOpen}
+        />
+      )}
 
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
     </div>

@@ -19,6 +19,17 @@ export function userPrefix(userId: string): string {
 
 export const INDEX_FILE = ".index.json";
 
+/**
+ * True when a read failed because the object isn't there. S3 answers 403 instead of 404 when the caller
+ * has no list permission on the bucket, so a missing file can look like "access denied". Real permission
+ * problems still show up: listing and writing (which always follow) fail loudly.
+ */
+export function isMissingObject(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+  return err.name === "NoSuchKey" || err.name === "NotFound" || err.name === "AccessDenied" || status === 404 || status === 403;
+}
+
 /** Ownership check used by download, delete and analyze. A key outside your folder is rejected. */
 export function ownsKey(userId: string, key: unknown): key is string {
   if (typeof key !== "string") return false;

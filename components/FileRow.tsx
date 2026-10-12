@@ -20,15 +20,32 @@ interface Props {
   onAnalyze: (file: FileItem) => void;
   onToggleStar: (file: FileItem) => void;
   onShare: (file: FileItem, minutes: number) => Promise<void>;
+  onPreview: (file: FileItem) => void;
+  selected: boolean;
+  onSelect: (file: FileItem) => void;
+  index: number; // position in the list, used to stagger the entrance animation
 }
 
 type Mode = "idle" | "delete" | "share";
 
-export default function FileRow({ file, analyzing, onOpen, onDelete, onAnalyze, onToggleStar, onShare }: Props) {
+export default function FileRow({
+  file,
+  analyzing,
+  onOpen,
+  onDelete,
+  onAnalyze,
+  onToggleStar,
+  onShare,
+  onPreview,
+  selected,
+  onSelect,
+  index,
+}: Props) {
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
   const kind = KIND[file.category];
   const fromAi = file.analyzedBy === "ai";
+  const previewable = file.category === "Images" || file.category === "PDFs";
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -41,16 +58,33 @@ export default function FileRow({ file, analyzing, onOpen, onDelete, onAnalyze, 
   }
 
   return (
-    <li className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-paper/70 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+    <li
+      style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
+      className={`fade-up flex flex-col gap-3 px-4 py-4 transition-colors sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${
+        selected ? "bg-teal-soft/70" : "hover:bg-paper/70"
+      }`}
+    >
       <div className="flex min-w-0 flex-1 items-start gap-4">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${kind.tint}`}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(file)}
+          aria-label={`Select ${file.name}`}
+          className="mt-[14px] h-4 w-4 shrink-0 cursor-pointer accent-teal"
+        />
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform hover:scale-105 ${kind.tint}`}>
           <Icon name={kind.icon} />
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium" title={file.name}>
+          <button
+            type="button"
+            onClick={() => onPreview(file)}
+            title={previewable ? `Preview ${file.name}` : file.name}
+            className="block max-w-full truncate text-left font-medium transition-colors hover:text-accent"
+          >
             {file.name}
-          </p>
+          </button>
           <p className="mt-0.5 text-xs text-muted">
             {formatBytes(file.size)} · {formatDate(file.lastModified)}
           </p>
@@ -144,7 +178,7 @@ export default function FileRow({ file, analyzing, onOpen, onDelete, onAnalyze, 
             </button>
             <button
               onClick={() => onOpen(file)}
-              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-1.5 text-sm font-medium transition hover:border-teal hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-1.5 text-sm font-medium transition hover:border-teal hover:text-accent active:scale-95"
             >
               <Icon name="open" className="h-4 w-4" />
               {file.category === "Images" || file.category === "PDFs" ? "Open" : "Download"}
