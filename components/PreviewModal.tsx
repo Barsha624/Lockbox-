@@ -8,7 +8,7 @@ import type { FileItem } from "../lib/types";
 
 interface Props {
   file: FileItem;
-  position: number; // 1-based place in the list of previewable files
+  position: number; 
   total: number;
   onPrev: () => void;
   onNext: () => void;
@@ -18,12 +18,10 @@ interface Props {
 
 type Loaded = { key: string; url: string | null; error: string | null };
 
-/** A full-page pop-up that shows an image or PDF without leaving the dashboard. */
 export default function PreviewModal({ file, position, total, onPrev, onNext, onClose, onOpenTab }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Ask the server for a short-lived link each time the file changes.
   useEffect(() => {
     let cancelled = false;
     getDownloadUrl(file.key)
@@ -34,7 +32,6 @@ export default function PreviewModal({ file, position, total, onPrev, onNext, on
     };
   }, [file.key]);
 
-  // Keyboard: Esc closes, arrows move between files. Page scroll is locked while open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

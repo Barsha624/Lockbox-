@@ -26,14 +26,13 @@ export async function POST(req: NextRequest) {
         ? fileType
         : "application/octet-stream";
 
-    // The folder comes from the signed-in session, never from the request body.
     const fileKey = newFileKey(user.id, fileName);
 
     const command = new PutObjectCommand({
       Bucket: bucket(),
       Key: fileKey,
       ContentType: contentType,
-      ContentLength: fileSize, // signed into the URL, so S3 rejects an upload of a different size
+      ContentLength: fileSize, 
     });
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
 

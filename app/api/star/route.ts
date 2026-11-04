@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "starred must be true or false." }, { status: 400 });
     }
 
-    // Don't create index entries for files that don't exist.
     try {
       await s3.send(new HeadObjectCommand({ Bucket: bucket(), Key: fileKey }));
     } catch {
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
         index[fileKey] = { ...index[fileKey], starred: true };
       } else if (index[fileKey]) {
         delete index[fileKey].starred;
-        if (Object.keys(index[fileKey]).length === 0) delete index[fileKey]; // keep the index tidy
+        if (Object.keys(index[fileKey]).length === 0) delete index[fileKey]; 
       }
     });
 

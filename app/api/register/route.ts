@@ -4,7 +4,6 @@ import { addHit, tooMany } from "../../../lib/rateLimit";
 
 const HOUR = 60 * 60 * 1000;
 
-/** Creates an email-and-password account. The browser then signs in through NextAuth like normal. */
 export async function POST(req: Request) {
   const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
   const limitKey = `register:${ip}`;

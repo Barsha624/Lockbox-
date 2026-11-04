@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     if (!ownsKey(user.id, fileKey)) {
       return NextResponse.json({ error: "File not found." }, { status: 404 });
     }
-    // Only the lengths offered in the UI are accepted, so nobody can ask for a link that never expires.
     const option = SHARE_OPTIONS.find((o) => o.minutes === minutes);
     if (!option) {
       return NextResponse.json({ error: "Choose 1 hour, 1 day or 7 days." }, { status: 400 });

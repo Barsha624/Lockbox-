@@ -25,7 +25,7 @@ export default function UploadZone({ onFiles, uploads }: { onFiles: (files: File
 
   function take(list: FileList | null) {
     if (list && list.length > 0) onFiles(Array.from(list));
-    if (inputRef.current) inputRef.current.value = ""; // lets you pick the same file again
+    if (inputRef.current) inputRef.current.value = ""; 
   }
 
   return (

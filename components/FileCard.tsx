@@ -19,7 +19,7 @@ interface Props {
   thumbUrl?: string;
   analyzing: boolean;
   selected: boolean;
-  index: number; // position in the grid, used to stagger the entrance animation
+  index: number; 
   onOpen: (file: FileItem) => void;
   onPreview: (file: FileItem) => void;
   onDelete: (file: FileItem) => Promise<void>;
@@ -31,7 +31,6 @@ interface Props {
 
 type Mode = "idle" | "delete" | "share";
 
-/** One file as a card: a picture (or a coloured tile with the AI summary), tags, and the actions. */
 export default function FileCard({
   file,
   thumbUrl,

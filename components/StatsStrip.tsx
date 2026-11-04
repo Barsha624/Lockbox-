@@ -1,7 +1,6 @@
 import { formatBytes } from "../lib/format";
 import { CATEGORIES, type Category, type FileItem } from "../lib/types";
 
-// Fixed colour per file type (defined in globals.css, checked for colour-blind separation).
 const CHART_COLOR: Record<Category, string> = {
   Images: "var(--chart-images)",
   PDFs: "var(--chart-pdfs)",
@@ -12,7 +11,6 @@ const CHART_COLOR: Record<Category, string> = {
 const RING_RADIUS = 30;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
-/** One connected strip: storage used, files by type, and how many files the AI has tagged. */
 export default function StatsStrip({ files }: { files: FileItem[] }) {
   const count = files.length;
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);

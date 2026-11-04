@@ -7,10 +7,6 @@ import { categoryFor } from "../../../lib/types";
 const MAX_KEYS = 40;
 const THUMB_LINK_SECONDS = 15 * 60;
 
-/**
- * Picture links for the file cards. Takes up to 40 keys and returns a short-lived link for each key that is
- * (a) inside the signed-in user's own folder and (b) an image. Anything else is silently left out.
- */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });

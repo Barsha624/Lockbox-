@@ -1,9 +1,6 @@
 @import "tailwindcss";
 
-/*
-  Colours live in plain CSS variables so the whole app can switch theme by changing one attribute
-  on <html> (data-theme="dark"). Tailwind classes such as bg-surface or text-ink-soft read these variables.
-*/
+
 :root {
   --paper: #f4f7f6;
   --surface: #ffffff;
@@ -12,10 +9,10 @@
   --muted: #5e7279;
   --line: #dce5e4;
 
-  --deep: #0f2a2e; /* sidebar, ask panel, toasts: dark in both themes */
+  --deep: #0f2a2e; 
   --deep-2: #0a1d20;
-  --teal: #0b7d70; /* fills that carry white text */
-  --accent: #0b7d70; /* teal used as text or icon colour */
+  --teal: #0b7d70; 
+  --accent: #0b7d70; 
   --teal-soft: #e0f2ef;
 
   --amber-soft: #fbf0d5;
@@ -32,7 +29,6 @@
   --danger-solid: #b42318;
   --danger-soft: #fdecea;
 
-  /* File-type colours for the chart. Checked for colour-blind separation and contrast. */
   --chart-images: #2f7fc1;
   --chart-pdfs: #c8435a;
   --chart-docs: #5560c9;
@@ -114,7 +110,6 @@ body {
   font-family: var(--font-sans);
 }
 
-/* A soft teal glow behind the top of the page, so it isn't a flat sheet of colour */
 .page-glow {
   background: radial-gradient(900px 320px at 15% -5%, color-mix(in srgb, var(--teal) 14%, transparent), transparent 70%);
 }
@@ -123,14 +118,12 @@ body {
   background: linear-gradient(180deg, var(--deep) 0%, var(--deep-2) 100%);
 }
 
-/* The ask panel: deep teal with a faint light bloom in one corner */
 .ask-bg {
   background:
     radial-gradient(520px 220px at 100% 0%, color-mix(in srgb, #4fd1c0 22%, transparent), transparent 70%),
     linear-gradient(135deg, var(--deep) 0%, var(--deep-2) 100%);
 }
 
-/* Login hero: deep teal with soft light blooms and a faint dot grid */
 .login-bg {
   background:
     radial-gradient(640px 420px at 85% 8%, color-mix(in srgb, #4fd1c0 26%, transparent), transparent 70%),
@@ -139,13 +132,11 @@ body {
     linear-gradient(160deg, var(--deep) 0%, var(--deep-2) 100%);
 }
 
-/* Visible keyboard focus everywhere */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Small entrance animations: toasts, file rows, and the preview pop-up */
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -204,7 +195,6 @@ body {
   animation: pop-in 200ms ease-out;
 }
 
-/* Cards that rise slightly when you point at them */
 @keyframes float-slow {
   0%,
   100% {

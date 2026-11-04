@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Keep the question under 500 characters." }, { status: 400 });
     }
 
-    // Only the signed-in user's own files are loaded, so no one else's files can reach the AI or the answer.
     const files = await listUserFiles(user.id);
     return NextResponse.json(await askVault(question, files));
   } catch (error) {

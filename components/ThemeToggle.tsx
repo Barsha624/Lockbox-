@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 
-/** Switches between the light and dark theme and remembers the choice in this browser. */
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
 
-  // The page script has already set data-theme before first paint; read it once we're in the browser.
   useEffect(() => {
     setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
   }, []);
@@ -19,7 +17,6 @@ export default function ThemeToggle() {
     try {
       localStorage.setItem("cv-theme", next);
     } catch {
-      // Private mode can block storage. The theme still changes for this visit.
     }
   }
 

@@ -23,7 +23,7 @@ interface Props {
   onPreview: (file: FileItem) => void;
   selected: boolean;
   onSelect: (file: FileItem) => void;
-  index: number; // position in the list, used to stagger the entrance animation
+  index: number; 
 }
 
 type Mode = "idle" | "delete" | "share";

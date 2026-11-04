@@ -39,7 +39,6 @@ export default function AskVault({ files, loading: filesLoading, onOpen }: Props
     }
   }
 
-  // Match the answer's file keys to the current file list (a file deleted since then is skipped).
   const matches = result
     ? result.fileKeys.map((k) => files.find((f) => f.key === k)).filter((f): f is FileItem => !!f)
     : [];

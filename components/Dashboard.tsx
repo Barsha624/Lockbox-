@@ -36,8 +36,8 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: "size", label: "Largest first" },
 ];
 
-const THUMB_MAX_BYTES = 6 * 1024 * 1024; // bigger pictures keep the plain tile, so the page stays light
-const THUMB_REFRESH_MS = 10 * 60 * 1000; // picture links last 15 minutes, so renew them before that
+const THUMB_MAX_BYTES = 6 * 1024 * 1024; 
+const THUMB_REFRESH_MS = 10 * 60 * 1000; 
 const CHIPS: View[] = ["All", "Images", "PDFs", "Documents", "Other"];
 type Layout = "grid" | "list";
 
@@ -154,8 +154,8 @@ export default function Dashboard({
         try {
           const key = await uploadFile(file, (progress) => patchUpload(id, { progress }));
           patchUpload(id, { phase: "tagging", progress: 100 });
-          await refresh(); // show the new file straight away
-          await runAnalyze(key); // then fill in its tags
+          await refresh(); 
+          await runAnalyze(key); 
           patchUpload(id, { phase: "done" });
           dropUpload(id, 2000);
         } catch (err) {
@@ -170,7 +170,6 @@ export default function Dashboard({
 
   const handleOpen = useCallback(
     async (file: FileItem) => {
-      // Open the tab first, inside the click, so pop-up blockers allow it. Point it at S3 once the link is ready.
       const tab = window.open("about:blank", "_blank");
       try {
         const url = await getDownloadUrl(file.key);
@@ -206,7 +205,7 @@ export default function Dashboard({
       const next = !file.starred;
       const setStar = (starred: boolean) =>
         setFiles((prev) => prev.map((f) => (f.key === file.key ? { ...f, starred } : f)));
-      setStar(next); // change the screen straight away, undo if the server says no
+      setStar(next); 
       try {
         await starFile(file.key, next);
       } catch (err) {
@@ -225,7 +224,6 @@ export default function Dashboard({
           await navigator.clipboard.writeText(url);
           notify("success", `Link copied. Anyone with it can open ${file.name} for ${label}.`);
         } catch {
-          // Some browsers block clipboard access. Show the link so it can still be copied by hand.
           window.prompt(`Copy this link. It works for ${label}.`, url);
         }
       } catch (err) {
@@ -254,7 +252,6 @@ export default function Dashboard({
         await deleteFile(f.key);
         gone.add(f.key);
       } catch {
-        // counted below
       }
     }
     setFiles((prev) => prev.filter((f) => !gone.has(f.key)));
@@ -266,13 +263,11 @@ export default function Dashboard({
     else notify("success", `Deleted ${gone.size} ${gone.size === 1 ? "file" : "files"}`);
   }, [files, selected, notify]);
 
-  // Remember grid or list between visits (private windows may block storage, so never rely on it).
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cv-layout");
       if (saved === "grid" || saved === "list") setLayout(saved);
     } catch {
-      /* storage unavailable: keep the default */
     }
   }, []);
   const chooseLayout = (next: Layout) => {
@@ -280,11 +275,9 @@ export default function Dashboard({
     try {
       localStorage.setItem("cv-layout", next);
     } catch {
-      /* ignore */
     }
   };
 
-  // Picture links for image cards. Each key is requested once; a timer renews them before they expire.
   useEffect(() => {
     const keys = files
       .filter((f) => f.category === "Images" && f.size <= THUMB_MAX_BYTES && !requestedThumbs.current.has(f.key))
@@ -297,7 +290,6 @@ export default function Dashboard({
           const urls = await getThumbUrls(keys.slice(i, i + 40));
           setThumbs((prev) => ({ ...prev, ...urls }));
         } catch {
-          // Cards fall back to the plain tile if pictures can't be loaded.
         }
       }
     })();
@@ -310,7 +302,6 @@ export default function Dashboard({
     return () => clearInterval(timer);
   }, []);
 
-  // Press "/" anywhere to jump to the search box.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -323,7 +314,6 @@ export default function Dashboard({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Drop files anywhere on the page. The upload box handles its own drops (it calls preventDefault first).
   useEffect(() => {
     let depth = 0;
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
@@ -391,7 +381,7 @@ export default function Dashboard({
   const handlePreview = useCallback(
     (file: FileItem) => {
       if (isPreviewable(file)) setPreviewKey(file.key);
-      else handleOpen(file); // Word, Excel, zip and so on can't be shown in the page, so download them
+      else handleOpen(file); 
     },
     [handleOpen],
   );

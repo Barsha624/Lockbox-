@@ -18,7 +18,6 @@ export async function DELETE(req: NextRequest) {
 
     await s3.send(new DeleteObjectCommand({ Bucket: bucket(), Key: fileKey }));
 
-    // Forget this file's tags too. If this step fails, the file is still gone, so don't fail the request.
     await updateIndex(user.id, (index) => {
       delete index[fileKey];
     }).catch(() => undefined);
